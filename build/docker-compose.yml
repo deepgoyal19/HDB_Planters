@@ -2,7 +2,7 @@ services:
   ui:
     stdin_open: true
     tty: true
-    image: ui
+    image: hdbplanters.azurecr.io/ui
     volumes:
       - ../hdb-ui/public:/hdb-ui/public
       - ../hdb-ui/src:/hdb-ui/src
@@ -10,7 +10,7 @@ services:
       - ../hdb-ui/package-lock.json:/hdb-ui/package-lock.json
       - ../hdb-ui/.env:/hdb-ui/.env
     ports:
-      - ${UI_HOST_PORT}:${UI_SERVICE_PORT}
+      - 3000:3000
     build:
       context: ../
       dockerfile: build/ReactUI.Dockerfile
@@ -18,7 +18,7 @@ services:
       
 
   plant-selection:
-    image: plant-selection
+    image: hdbplanters.azurecr.io/plant-selection
     stdin_open: true
     tty: true
     build:
@@ -28,17 +28,17 @@ services:
       - ../hdb-plant-selection/src:/hdb-plant-selection/src        
       - ../hdb-plant-selection/tests:/hdb-plant-selection/tests
     ports:
-      - ${AI_PLANT_HOST_PORT}:${AI_PLANT_SERVICE_PORT}
+      - 8000:8000
     env_file:
       - .env
     restart: on-failure
     depends_on:
       - elasticsearch
-    entrypoint: sh -c "sleep 30 && uvicorn src.main:app --host=0.0.0.0 --port=${AI_PLANT_HOST_PORT} --reload"
+    entrypoint: sh -c "sleep 30 && uvicorn src.main:app --host=0.0.0.0 --port=8000 --reload"
 
 
   spatial-placement:
-    image: spatial-placement
+    image: hdbplanters.azurecr.io/spatial-placement
     stdin_open: true
     tty: true
     build:
@@ -48,13 +48,13 @@ services:
       - ../hdb-spatial-placement/src:/hdb-spatial-placement/src        
       - ../hdb-spatial-placement/tests:/hdb-spatial-placement/tests
     ports:
-      - ${AI_SPATIAL_HOST_PORT}:${AI_SPATIAL_SERVICE_PORT}
+      - 8001:8001
     env_file:
       - .env
-    command: uvicorn src.main:app --host=0.0.0.0 --port=${AI_SPATIAL_HOST_PORT} --reload
+    command: uvicorn src.main:app --host=0.0.0.0 --port=8001 --reload
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.1
+    image: hdbplanters.azurecr.io/docker.elastic.co/elasticsearch/elasticsearch:8.10.1
     tty: true
     container_name: elasticsearch
     environment:
@@ -62,13 +62,13 @@ services:
       - xpack.security.enabled=true
       - xpack.security.transport.ssl.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - ELASTIC_PASSWORD=$ELASTIC_PASSWORD
+      - ELASTIC_PASSWORD=elasticpw
     volumes:
       - ../hdb-elasticsearch-db/data:/usr/share/elasticsearch/data
       - ../hdb-elasticsearch-db/src:/hdb-elasticsearch-db/src
       - ../hdb-elasticsearch-db/tests:/hdb-elasticsearch-db/tests
     ports:
-      - ${ELASTIC_HOST_PORT}:${ELASTIC_SERVICE_PORT}
+      - 9200:9200
     ulimits:
       memlock:
         soft: -1
@@ -82,17 +82,17 @@ services:
           "CMD",
           "sh",
           "-c",
-          "curl -sf --insecure http://$ELASTIC_USERNAME:$ELASTIC_PASSWORD@localhost:9200/_cat/health | grep -ioE 'green|yellow' || echo 'not green/yellow cluster status'"
+          "curl -sf --insecure http://kibana_system:elasticpw@localhost:9200/_cat/health | grep -ioE 'green|yellow' || echo 'not green/yellow cluster status'"
         ]
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.10.1
+    image: hdbplanters.azurecr.io/docker.elastic.co/kibana/kibana:8.10.1
     container_name: kibana
     ports:
-      - ${KIBANA_HOST_PORT}:${KIBANA_SERVICE_PORT}
+      - 5601:5601
     depends_on:
       - elasticsearch
     environment:
-      ELASTICSEARCH_USERNAME: ${ELASTIC_USERNAME}
-      ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD}
-      ELASTICSEARCH_HOSTS: http://elasticsearch:${ELASTIC_HOST_PORT}
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: elasticpw
+      ELASTICSEARCH_HOSTS: 5601
